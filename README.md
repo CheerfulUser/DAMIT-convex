@@ -6,3 +6,24 @@ The source codes of light-curve inversion routines together with brief manuals, 
 
 ## License
 This software is licensed under [CC Attribution 4.0 international License](https://creativecommons.org/licenses/by/4.0/legalcode).
+
+## This fork (CheerfulUser/DAMIT-convex)
+Changes to `convexinv` for the TESSELLATE asteroid shape pipeline. Without the new options and
+without weights in the input, results are unchanged from upstream (outputs byte-identical, or
+equal to ~1e-11 where summation order changed).
+
+- **Weights**: a lightcurve header `n flag w [1]` gives the lightcurve a chi^2 weight `w`; with the
+  fourth number `1`, every point line carries a ninth column, that point's weight.
+- **Speed**: 11.6x faster per iteration (BLAS-batched derivatives and normal equations; linked
+  against Accelerate on macOS, OpenBLAS elsewhere); `period_scan` ~10x faster.
+- **Convergence**: with a stop condition below 1, the fit also ends once the damping exceeds 1e6
+  (stalled at its minimum) instead of running to `MAX_N_ITER`.
+- **Options**: `-e file` fitted parameters with 1-sigma uncertainties; `-c file` / `-i file` write /
+  warm-start from the shape coefficients; `-y v0 free` YORP d(omega)/dt term (rad/day^2);
+  `-r k n` Huber robust reweighting, `n` passes.
+- **No point limits**: data arrays are allocated at run time (`MAX_N_OBS`, `POINTS_MAX` no longer
+  apply); `MAX_LC` 10000.
+
+### Build
+`make` at the top level builds `convexinv/convexinv`, `convexinv/period_scan` and `minkowski`
+(needs a C compiler, gfortran, and on Linux OpenBLAS).
