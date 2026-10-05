@@ -28,7 +28,7 @@ void matrix(double omg, double t, double tmat[][4], double dtm[][4][4])
    int i, j, k;
    
    /* phase of rotation */
-   f = omg * t + Phi_0;
+   f = omg * t + Phi_0 + 0.5 * Yorp_now * t * t;   /* Yorp_now = 0 unless the YORP term is on */
    f = fmod(f, 2 * PI); 
    cf = cos(f);
    sf = sin(f);

@@ -39,18 +39,17 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 /* global parameters */
 int Lmax, Mmax, Niter, Lastcall, Ncoef, Numfac, Lcurves, Nphpar,
-    Lpoints[MAX_LC+1], Inrel[MAX_LC+1], Deallocate;
+    Lpoints[MAX_LC+1], Inrel[MAX_LC+1], Deallocate, Nyorp = 0;
     
-double Ochisq, Chisq, Alamda, Alamda_incr, Alamda_start, Phi_0, Scale,
+double Yorp_now = 0, Ochisq, Chisq, Alamda, Alamda_incr, Alamda_start, Phi_0, Scale,
        Area[MAX_N_FAC+1], Darea[MAX_N_FAC+1], Sclnw[MAX_LC+1],
-       Yout[MAX_N_OBS+1],
+       *Yout, *Weight, *Resid,
        Fc[MAX_N_FAC+1][MAX_LM+1], Fs[MAX_N_FAC+1][MAX_LM+1], 
        Tc[MAX_N_FAC+1][MAX_LM+1], Ts[MAX_N_FAC+1][MAX_LM+1], 
        Dsph[MAX_N_FAC+1][MAX_N_PAR+1], Dg[MAX_N_FAC+1][MAX_N_PAR+1],    
        Nor[MAX_N_FAC+1][4], Blmat[4][4],
        Pleg[MAX_N_FAC+1][MAX_LM+1][MAX_LM+1],
-       Dblm[3][4][4],
-       Weight[MAX_N_OBS+1];
+       Dblm[3][4][4];
     
 /*--------------------------------------------------------------*/
 
@@ -58,12 +57,13 @@ FILE *f_1, *f_per;
   
 int main(int argc, char *argv[])
 {
+   int n_tok, pt_weights;
    int i, j, l, m, k, n, nrows, ndata, k2, ndir, i_temp, niter_best,
        n_iter_max, n_iter_min, ind_par_file, ind_out_file, verbose, arg_shift, 
        *ia,  ial0, ia_par[4], ia_cl,
        **ifp; 
   
-   double per_start, per_step_coef, per_end,
+   double per_start, lc_weight, per_step_coef, per_end,
           freq, freq_start, freq_step, freq_end, jd_min, jd_max,
           dev_old, dev_new, iter_diff, iter_diff_max, stop_condition,
           jd_0, fi_0=0, conw, a=1.05, b=1, c=0.95, prd, cl, al0, ave, e0len, elen, cos_alpha,
@@ -77,6 +77,9 @@ int main(int argc, char *argv[])
    char *str_temp;
 
    str_temp = (char *) malloc (MAX_LINE_LENGTH);
+   Yout = vector_double(MAX_N_OBS + 3);
+   Weight = vector_double(MAX_N_OBS + 3);
+   Resid = vector_double(MAX_N_OBS + 3);
 
    ee = matrix_double(MAX_N_OBS,3);
    ee0 = matrix_double(MAX_N_OBS,3);
@@ -176,6 +179,21 @@ int main(int argc, char *argv[])
    {
       ave = 0; /* average */
       fscanf(stdin, "%d %d", &Lpoints[i], &i_temp); /* points in this lightcurve */
+      /* optional third number on the header line: weight of this lc. in chi^2 (default 1);
+         it multiplies 1/sigma^2 of every point, so relative lcs. stay renormalised as before */
+      /* optional fourth number: 1 = every point line carries a ninth value, its own weight,
+         which multiplies the lc. weight (e.g. 1/sigma^2 from per-point photometric errors) */
+      fgets(str_temp, MAX_LINE_LENGTH, stdin);
+      n_tok = sscanf(str_temp, "%lf %d", &lc_weight, &pt_weights);
+      if (n_tok < 1)
+         lc_weight = 1;
+      if (n_tok < 2)
+         pt_weights = 0;
+      if (lc_weight <= 0)
+      {
+         fprintf(stderr, "\nError: weight of lc. %d must be positive (%g)\n", i, lc_weight);
+         fflush(stderr); exit(1);
+      }
       Inrel[i] = 1 - i_temp;
      
       if (Lpoints[i] > POINTS_MAX)
@@ -198,6 +216,16 @@ int main(int argc, char *argv[])
 	 fscanf(stdin, "%lf %lf", &tim[ndata], &brightness[ndata]); /* JD, brightness */	 
 	 fscanf(stdin, "%lf %lf %lf", &e0[1], &e0[2], &e0[3]); /* ecliptic astr_tempocentric coord. of the Sun in AU */
 	 fscanf(stdin, "%lf %lf %lf", &e[1], &e[2], &e[3]); /* ecliptic astrocentric coord. of the Earth in AU */	 
+         Weight[ndata] = 1;
+         if (pt_weights == 1)
+         {
+            fscanf(stdin, "%lf", &Weight[ndata]);
+            if (Weight[ndata] <= 0)
+            {
+               fprintf(stderr, "\nError: weight of point %d must be positive (%g)\n", ndata, Weight[ndata]);
+               fflush(stderr); exit(1);
+            }
+         }
 	 /* selects the minimum and maximum JD */
 	 if (tim[ndata] < jd_min) jd_min = tim[ndata];
 	 if (tim[ndata] > jd_max) jd_max = tim[ndata];
@@ -235,6 +263,7 @@ int main(int argc, char *argv[])
       {
          k2++;
          sig[k2] = ave;
+         Weight[k2] *= lc_weight;
       }
    } /* i, all lightcurves */        
 
@@ -271,6 +300,7 @@ int main(int argc, char *argv[])
       ndata++;
       brightness[ndata] = 0;
       sig[ndata] = 1 / conw;
+      Weight[ndata] = 1;
    }
 
    /* the ordering of the coeffs. of the Laplace series */

@@ -1,0 +1,9 @@
+# build products and local backups
+convexinv/*.o
+convexinv/convexinv
+convexinv/period_scan
+convexinv/*_orig
+convexinv/*.orig
+minkowski
+lcgenerator/*.o
+lcgenerator/lcgenerator

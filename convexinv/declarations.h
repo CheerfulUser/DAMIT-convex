@@ -22,6 +22,8 @@ void phasec(double dcdp[], double alpha, double p[]);
 void matrix(double omg, double t, double tmat[][4], double dtm[][4][4]);
 double bright(double ee[], double ee0[], double t, double cg[], 
             double dyda[], int ncoef);
+double bright_s(double ee[], double ee0[], double t, double cg[],
+                double dyda[], int ncoef, double *srow);
 
 double *vector_double(int length);
 int *vector_int(int length);
